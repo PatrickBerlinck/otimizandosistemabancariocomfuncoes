@@ -1,0 +1,235 @@
+import textwrap
+
+# --- Funções para Operações Bancárias ---
+
+def depositar(saldo, valor, extrato, /):
+    """
+    Realiza um depósito na conta.
+    Argumentos devem ser passados apenas por posição (positional only).
+    Retorna o saldo e o extrato atualizados.
+    """
+    if valor > 0:
+        saldo += valor
+        extrato += f"Depósito:\tR$ {valor:.2f}\n"
+        print(f"\n=== Depósito de R$ {valor:.2f} realizado com sucesso! ===")
+    else:
+        print("\n@@@ Operação falhou! O valor informado é inválido. @@@")
+    return saldo, extrato
+
+
+def sacar(*, saldo, valor, extrato, limite, numero_saques, limite_saques):
+    """
+    Realiza um saque na conta.
+    Argumentos devem ser passados apenas por nome (keyword only).
+    Retorna o saldo, o extrato e o número de saques atualizados.
+    """
+    excedeu_saldo = valor > saldo
+    excedeu_limite = valor > limite
+    excedeu_saques = numero_saques >= limite_saques
+
+    if excedeu_saldo:
+        print("\n@@@ Operação falhou! Você não tem saldo suficiente. @@@")
+    elif excedeu_limite:
+        print("\n@@@ Operação falhou! O valor do saque excede o limite. @@@")
+    elif excedeu_saques:
+        print("\n@@@ Operação falhou! Número máximo de saques excedido. @@@")
+    elif valor > 0:
+        saldo -= valor
+        extrato += f"Saque:\t\tR$ {valor:.2f}\n"
+        numero_saques += 1
+        print(f"\n=== Saque de R$ {valor:.2f} realizado com sucesso! ===")
+    else:
+        print("\n@@@ Operação falhou! O valor informado é inválido. @@@")
+    
+    return saldo, extrato, numero_saques
+
+
+def exibir_extrato(saldo, /, *, extrato):
+    """
+    Exibe o extrato da conta.
+    Argumentos: saldo (posicional), extrato (nomeado).
+    """
+    print("\n================ EXTRATO ================")
+    print("Não foram realizadas movimentações." if not extrato else extrato)
+    print(f"\nSaldo:\t\tR$ {saldo:.2f}")
+    print("==========================================")
+
+
+# --- Funções para Gerenciamento de Usuários e Contas ---
+
+def filtrar_usuario(cpf, usuarios):
+    """
+    Filtra a lista de usuários para encontrar um usuário pelo CPF.
+    Retorna o objeto do usuário (dicionário) se encontrado, senão None.
+    """
+    usuarios_filtrados = [usuario for usuario in usuarios if usuario["cpf"] == cpf]
+    return usuarios_filtrados[0] if usuarios_filtrados else None
+
+
+def criar_usuario(usuarios):
+    """
+    Cria um novo usuário (cliente do banco).
+    Armazena o usuário em uma lista.
+    Valida se o CPF já existe.
+    """
+    cpf = input("Informe o CPF (somente números): ")
+    usuario = filtrar_usuario(cpf, usuarios)
+
+    if usuario:
+        print("\n@@@ Erro: Já existe usuário com este CPF! @@@")
+        return
+
+    nome = input("Informe o nome completo: ")
+    data_nascimento = input("Informe a data de nascimento (dd-mm-aaaa): ")
+    endereco = input("Informe o endereço (logradouro, nro - bairro - cidade/sigla estado): ")
+
+    usuarios.append({"nome": nome, "data_nascimento": data_nascimento, "cpf": cpf, "endereco": endereco})
+    print("\n=== Usuário criado com sucesso! ===")
+
+
+def criar_conta(contas, usuarios, agencia):
+    """
+    Cria uma nova conta corrente e a vincula a um usuário existente.
+    O número da conta é sequencial.
+    """
+    cpf = input("Informe o CPF do usuário: ")
+    usuario = filtrar_usuario(cpf, usuarios)
+
+    if not usuario:
+        print("\n@@@ Erro: Usuário não encontrado, fluxo de criação de conta encerrado! @@@")
+        return
+
+    # O número da conta é sequencial, iniciado em 1.
+    # Usamos len(contas) + 1 para o próximo número de conta disponível.
+    numero_conta = len(contas) + 1
+    contas.append({"agencia": agencia, "numero_conta": numero_conta, "usuario": usuario, "saldo": 0, "extrato": "", "numero_saques": 0})
+    print(f"\n=== Conta {agencia}/{numero_conta} criada com sucesso para {usuario['nome']}! ===")
+
+
+def listar_contas(contas):
+    """
+    Lista todas as contas cadastradas no sistema.
+    """
+    if not contas:
+        print("\n@@@ Não há contas cadastradas. @@@")
+        return
+
+    print("\n============== CONTAS ==============")
+    for conta in contas:
+        linha = f"""\
+            Agência:\t{conta['agencia']}
+            C/C:\t\t{conta['numero_conta']}
+            Titular:\t{conta['usuario']['nome']}
+        """
+        print(textwrap.dedent(linha))
+    print("====================================")
+
+
+# --- Função de Seleção de Conta ---
+def selecionar_conta(contas):
+    """
+    Permite ao usuário selecionar uma conta existente para operações.
+    """
+    if not contas:
+        print("\n@@@ Não há contas cadastradas. Crie uma conta primeiro. @@@")
+        return None
+
+    while True:
+        try:
+            num_conta = int(input("Informe o número da conta para operar: "))
+            for conta in contas:
+                if conta["numero_conta"] == num_conta:
+                    print(f"\n=== Conta {num_conta} selecionada. ===")
+                    return conta
+            print("\n@@@ Conta não encontrada. Tente novamente. @@@")
+        except ValueError:
+            print("\n@@@ Entrada inválida. Digite um número. @@@")
+
+
+# --- Função Principal (main) ---
+
+def main():
+    """
+    Função principal que orquestra o sistema bancário.
+    """
+    # Constantes e variáveis globais
+    LIMITE_SAQUE_INDIVIDUAL = 500
+    LIMITE_SAQUES_DIARIOS = 3
+    AGENCIA = "0001"
+
+    # Listas para armazenar usuários e contas
+    usuarios = []
+    contas = []
+    
+    conta_selecionada = None # Armazena a conta atualmente selecionada para operações
+
+    while True:
+        menu = """\n
+        [d] Depositar
+        [s] Sacar
+        [e] Extrato
+        [nu] Novo Usuário
+        [nc] Nova Conta
+        [lc] Listar Contas
+        [sc] Selecionar Conta
+        [q] Sair
+        => """
+        opcao = input(textwrap.dedent(menu))
+
+        if opcao == "d":
+            if not conta_selecionada:
+                print("\n@@@ Nenhuma conta selecionada. Por favor, selecione ou crie uma conta primeiro. @@@")
+                continue
+
+            valor = float(input("Informe o valor do depósito: "))
+            # Chama a função depositar, passando os argumentos por posição
+            conta_selecionada["saldo"], conta_selecionada["extrato"] = depositar(
+                conta_selecionada["saldo"], valor, conta_selecionada["extrato"]
+            )
+
+        elif opcao == "s":
+            if not conta_selecionada:
+                print("\n@@@ Nenhuma conta selecionada. Por favor, selecione ou crie uma conta primeiro. @@@")
+                continue
+
+            valor = float(input("Informe o valor do saque: "))
+            # Chama a função sacar, passando os argumentos por nome
+            conta_selecionada["saldo"], conta_selecionada["extrato"], conta_selecionada["numero_saques"] = sacar(
+                saldo=conta_selecionada["saldo"],
+                valor=valor,
+                extrato=conta_selecionada["extrato"],
+                limite=LIMITE_SAQUE_INDIVIDUAL,
+                numero_saques=conta_selecionada["numero_saques"],
+                limite_saques=LIMITE_SAQUES_DIARIOS
+            )
+
+        elif opcao == "e":
+            if not conta_selecionada:
+                print("\n@@@ Nenhuma conta selecionada. Por favor, selecione ou crie uma conta primeiro. @@@")
+                continue
+
+            # Chama a função exibir_extrato, passando saldo por posição e extrato por nome
+            exibir_extrato(conta_selecionada["saldo"], extrato=conta_selecionada["extrato"])
+
+        elif opcao == "nu":
+            criar_usuario(usuarios)
+
+        elif opcao == "nc":
+            criar_conta(contas, usuarios, AGENCIA)
+        
+        elif opcao == "lc":
+            listar_contas(contas)
+        
+        elif opcao == "sc":
+            conta_selecionada = selecionar_conta(contas)
+
+        elif opcao == "q":
+            print("\nObrigado por usar nosso sistema bancário! Até logo.")
+            break
+
+        else:
+            print("\n@@@ Operação inválida, por favor selecione novamente a operação desejada. @@@")
+
+# Executa a função principal do programa
+if __name__ == "__main__":
+    main()
